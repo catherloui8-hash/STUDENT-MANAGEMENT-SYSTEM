@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Student Management System</title>
+<style>
+:root{--navy:#17324d;--blue:#2563eb;--line:#dbe3ec;--muted:#64748b;--red:#b91c1c;--green:#087443}
+*{box-sizing:border-box}body{margin:0;font-family:Arial,sans-serif;background:#f4f7fb;color:#1f2937}
+header{background:linear-gradient(120deg,#17324d,#2563a6);color:white;padding:25px max(18px,calc((100% - 1120px)/2))}
+h1{margin:0 0 7px;font-size:clamp(23px,4vw,32px)}header p{margin:0;color:#e3edf8}
+main{max-width:1120px;margin:24px auto;padding:0 18px 35px}.layout{display:grid;grid-template-columns:minmax(260px,.85fr) minmax(0,1.5fr);gap:20px;align-items:start}
+.panel{background:white;border:1px solid var(--line);border-radius:14px;padding:20px;box-shadow:0 5px 18px #18324d0b}
+h2{margin:0 0 16px;font-size:20px;color:var(--navy)}label{display:block;font-size:13px;font-weight:bold;margin:13px 0 6px}
+input,select{width:100%;padding:11px 12px;border:1px solid #cbd5e1;border-radius:8px;font-size:14px;background:white}
+input:focus,select:focus{outline:2px solid #bfdbfe;border-color:var(--blue)}
+button{border:0;border-radius:8px;padding:10px 14px;font-weight:bold;cursor:pointer}.primary{background:var(--blue);color:white;width:100%;margin-top:17px}
+.secondary{background:#e8eef7;color:var(--navy)}.danger{background:#fee2e2;color:var(--red)}
+.toolbar,.actions{display:flex;gap:8px;flex-wrap:wrap}.toolbar{margin-bottom:12px}.toolbar input{flex:1;min-width:100px}
+.status{min-height:20px;font-size:13px;color:var(--muted)}.error{color:var(--red)}.success{color:var(--green)}
+.count{font-size:13px;color:var(--muted)}.table-wrap{overflow-x:auto}table{border-collapse:collapse;width:100%;min-width:640px;font-size:13px}
+th,td{text-align:left;padding:11px 9px;border-bottom:1px solid #e8edf3}th{background:#f8fafc;color:#475569}.empty{text-align:center;padding:25px;color:var(--muted)}
+footer{text-align:center;color:var(--muted);font-size:12px;padding:10px 0 25px}
+@media(max-width:800px){.layout{grid-template-columns:1fr}header{padding:22px 18px}}
+</style></head>
+<body>
+<header><h1>Student Management System</h1><p>Register, view, search, update and delete student records</p></header>
+<main><div class="layout">
+<section class="panel">
+<h2 id="formTitle">Register a Student</h2>
+<form id="studentForm">
+<label for="fullName">Full name</label><input id="fullName" required placeholder="Enter student's full name">
+<label for="regNumber">Registration number</label><input id="regNumber" required placeholder="e.g. BSU001">
+<label for="program">Programme</label><input id="program" required placeholder="e.g. Bachelor of Information Technology">
+<label for="year">Year of study</label><select id="year" required><option value="">Select year</option><option>Year 1</option><option>Year 2</option><option>Year 3</option><option>Year 4</option><option>Year 5</option></select>
+<label for="email">Email address</label><input id="email" type="email" required placeholder="student@example.com">
+<button class="primary" id="submitButton" type="submit">Add Student</button>
+<button class="secondary" id="cancelEdit" type="button" hidden style="width:100%;margin-top:8px">Cancel editing</button>
+<p class="status" id="formStatus" aria-live="polite"></p>
+</form></section>
+<section class="panel"><h2>Student Records</h2>
+<div class="toolbar"><input id="searchInput" type="search" placeholder="Search name, registration, programme or email"><button class="secondary" id="refreshButton" type="button">Refresh</button></div>
+<p class="count" id="recordCount">Loading records...</p>
+<div class="table-wrap"><table><thead><tr><th>Name</th><th>Reg. No.</th><th>Programme</th><th>Year</th><th>Email</th><th>Actions</th></tr></thead><tbody id="studentRows"><tr><td colspan="6" class="empty">Loading...</td></tr></tbody></table></div>
+<p class="status" id="listStatus" aria-live="polite"></p></section>
+</div></main><footer>Student Management System · Node.js · Express · MongoDB</footer>
+<script>
+"use strict";
+const API="/api/students",form=document.getElementById("studentForm"),rows=document.getElementById("studentRows");
+const formStatus=document.getElementById("formStatus"),listStatus=document.getElementById("listStatus");
+const submitButton=document.getElementById("submitButton"),cancelButton=document.getElementById("cancelEdit");
+let editingId=null,allStudents=[];
+function status(el,msg,type=""){el.textContent=msg;el.className="status "+type}
+function dataFromForm(){return {fullName:document.getElementById("fullName").value.trim(),regNumber:document.getElementById("regNumber").value.trim(),program:document.getElementById("program").value.trim(),year:document.getElementById("year").value,email:document.getElementById("email").value.trim()}}
+async function errorText(response){try{const d=await response.json();return d.error||d.message||"Request failed"}catch{return "Unexpected server response"}}
+function resetForm(){form.reset();editingId=null;document.getElementById("formTitle").textContent="Register a Student";submitButton.textContent="Add Student";cancelButton.hidden=true;status(formStatus,"")}
+async function loadStudents(){rows.innerHTML='<tr><td colspan="6" class="empty">Loading...</td></tr>';status(listStatus,"");
+try{const r=await fetch(API);if(!r.ok)throw Error(await errorText(r));allStudents=await r.json();renderStudents()}
+catch(e){rows.innerHTML='<tr><td colspan="6" class="empty">Could not load records.</td></tr>';document.getElementById("recordCount").textContent="Records unavailable";status(listStatus,e.message+" Check that Node.js and MongoDB are running.","error")}}
+function renderStudents(){const term=document.getElementById("searchInput").value.trim().toLowerCase();const list=allStudents.filter(s=>[s.fullName,s.regNumber,s.program,s.year,s.email].some(v=>String(v||"").toLowerCase().includes(term)));
+document.getElementById("recordCount").textContent=list.length+" student(s) shown";rows.replaceChildren();
+if(!list.length){const tr=document.createElement("tr"),td=document.createElement("td");td.colSpan=6;td.className="empty";td.textContent=term?"No matching students found.":"No student records yet. Add the first student.";tr.appendChild(td);rows.appendChild(tr);return}
+list.forEach(s=>{const tr=document.createElement("tr");[s.fullName,s.regNumber,s.program,s.year,s.email].forEach(v=>{const td=document.createElement("td");td.textContent=v||"";tr.appendChild(td)});
+const td=document.createElement("td"),wrap=document.createElement("div");wrap.className="actions";const edit=document.createElement("button");edit.className="secondary";edit.type="button";edit.textContent="Edit";edit.onclick=()=>beginEdit(s);
+const del=document.createElement("button");del.className="danger";del.type="button";del.textContent="Delete";del.onclick=()=>deleteStudent(s._id);wrap.append(edit,del);td.appendChild(wrap);tr.appendChild(td);rows.appendChild(tr)})}
+function beginEdit(s){editingId=s._id;for(const key of ["fullName","regNumber","program","year","email"])document.getElementById(key).value=s[key]||"";
+document.getElementById("formTitle").textContent="Update Student";submitButton.textContent="Save Changes";cancelButton.hidden=false;status(formStatus,"Editing "+s.fullName)}
+form.addEventListener("submit",async e=>{e.preventDefault();if(!form.reportValidity())return;submitButton.disabled=true;status(formStatus,editingId?"Updating student...":"Saving student...");
+const editing=Boolean(editingId);try{const r=await fetch(editing?API+"/"+encodeURIComponent(editingId):API,{method:editing?"PUT":"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(dataFromForm())});
+if(!r.ok)throw Error(await errorText(r));const result=await r.json();resetForm();await loadStudents();status(formStatus,result.message||"Saved successfully.","success")}
+catch(err){status(formStatus,err.message,"error")}finally{submitButton.disabled=false}});
+async function deleteStudent(id){const s=allStudents.find(x=>x._id===id);if(!confirm("Delete "+(s?s.fullName:"this student")+"?"))return;
+try{const r=await fetch(API+"/"+encodeURIComponent(id),{method:"DELETE"});if(!r.ok)throw Error(await errorText(r));const d=await r.json();if(editingId===id)resetForm();await loadStudents();status(listStatus,d.message||"Student deleted.","success")}catch(e){status(listStatus,e.message,"error")}}
+cancelButton.addEventListener("click",resetForm);document.getElementById("searchInput").addEventListener("input",renderStudents);document.getElementById("refreshButton").addEventListener("click",loadStudents);
+loadStudents();
+</script></body></html>
